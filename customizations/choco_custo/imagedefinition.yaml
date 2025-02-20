@@ -13,14 +13,12 @@ tasks:
     parameters:
       package: OpenJS.NodeJS
       runAsUser: false
-  - name: winget
+  - name: choco
     parameters:
-      package: Postman.Postman
-      runAsUser: false  
-  - name: winget
+      package: postman
+  - name: choco
     parameters:
-      package: TortoiseHg.TortoiseHg
-      runAsUser: false
+      package: tortoisehg
   - name: choco
     parameters:
       package: netfx-4.8.1

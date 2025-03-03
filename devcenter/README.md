@@ -2,7 +2,26 @@
 
 The aim of this page is to display all the commands to manage the devbox using CLI
 
-![DevBox Image](devbox2.png)
+# Summary
+
+This guide provides a step-by-step process to configure a DevCenter using Azure CLI commands. It will connect the devbox to a dedicated vNet hosting a Postgres Database.
+
+The main steps include:
+
+1. **Prerequisites**: Log in to Azure and add the DevCenter extension.
+2. **DevCenter**: Create a new resource group and DevCenter.
+3. **Add DevBox Definition**: List available DevBox definitions and images, select an image, and create a new DevBox definition.
+4. **Add Environment Types**: Create environment types such as `DevTest` and `QAandUAT`.
+5. **Add Network Connection**: Create a virtual network, subnets, and a network connection, then attach it to the DevCenter.
+6. **Databases**: Create an Azure Database for PostgreSQL in the specified subnet.
+7. **Project**: Define a new project and assign environment types to it.
+8. **Manage Devbox Pools**: Create and list DevBox pools with managed and unmanaged networks.
+9. **Manage Users**: Assign users to the project with appropriate roles.
+
+The full bash script is available here [scripts/setup_devbox.sh](scripts/setup_devbox.sh)
+
+![DevBox Image](devbox_1.png)
+
 
 # Prerequisites
 
@@ -19,7 +38,6 @@ az extension add --name devcenter
 az group create  --location centralindia --resource-group rg-devbox-demo
 az devcenter admin devcenter create --location "centralindia" --tags CostCode="12345" --name "ContosoDevCenter" --resource-group "rg-devbox-demo"
 ```
-
 
 ## Add DevBox Definition
 
@@ -127,6 +145,7 @@ Let the user bob@LEBO.onmicrosoft.com access to the project `Project1`
 
 ```
 project_id=$(az devcenter admin project show --name Project1 -g rg-devbox-demo -o tsv --query id)
+# replace bob@LEBO.onmicrosoft.com by another user id
 user_id=$(az ad user show --id "bob@LEBO.onmicrosoft.com" --query "id" --output tsv)
 az role assignment create --assignee ${user_id} --role "DevCenter Dev Box User" --scope ${project_id}
 ```
@@ -159,3 +178,107 @@ Ping statistics for 10.0.2.4:
 Approximate round trip times in milli-seconds:
     Minimum = 0ms, Maximum = 1ms, Average = 0ms
 ```
+
+# Multiple subscriptions
+
+## Introduction
+
+If the different resources don't belong to the same subcription (but still in the same tenant)
+1. One subscription for all the dabatases resources 
+1. One subscription for to manage the devbox configurations and the runnig instances.
+
+Check the schema below
+
+![DevBox Image](devbox_advanced.png)
+
+* All the commmands targeting the `rg-devbox-demo` belong to the `subscription1`
+* All the commmands targeting the `rg-db-devbox-demo` and `rg-network-devobox-demo` belong to the `subscription2`
+
+## New application
+
+Using `subscription1` or `subscription2`, run the following commands to create a new `myServicePrincipalForDevBox` application at the tenant level, visible by the 2 subscriptions.
+
+This application will receive the `Contributor` role on 2 resources : 
+* Attached Network Connection (`subscription1`)
+* Network Connection (`subscription2`)
+
+```
+tenantId=$(az account  show -o tsv --query "{tenantId:tenantId}")
+appPassword=$(az ad sp create-for-rbac --name myServicePrincipalForDevBox -o tsv --query "{password:password}")
+echo "${appPassword}
+appId=$(az ad sp list --display-name myServicePrincipalForDevBox --query "[].appId" -o tsv)
+echo "${appId}
+# az login --service-principal -u ${appID} -p ${appPassword} -t ${tenantId}
+```
+
+## Network & Database
+
+Using `subscription2`
+
+```
+subscription2="yyyyyyyy"
+az login --subscription $subscription2
+```
+
+### Add vNet and subnet
+```
+az group create --location centralindia --resource-group rg-network-devbox-demo
+az network vnet create --name MyVNet1 --resource-group rg-network-devbox-demo --address-prefix 10.0.0.0/16 --subnet-name default --subnet-prefix 10.0.0.0/24
+az network vnet subnet create --resource-group rg-network-devbox-demo --vnet-name MyVNet1 --name vnet-for-databases --address-prefix 10.0.2.0/24
+az network vnet subnet create --resource-group rg-network-devbox-demo --vnet-name MyVNet1 --name vnet-for-devboxes --address-prefix 10.0.4.0/24
+```
+### Add DevBox Network connection (subscription2)
+```
+devbox_subnet_id=$(az network vnet subnet show --name vnet-for-devboxes --resource-group rg-network-devbox-demo --vnet-name "MyVNet1" -o tsv --query id)
+echo $devbox_subnet_id
+az devcenter admin network-connection create --location centralindia --domain-join-type "AzureADJoin" --networking-resource-group-name "DevBoxNetworkInterfacesRG" --subnet-id ${devbox_subnet_id} --name "DevboxDefaultNetworkConnection" --resource-group rg-network-devbox-demo
+nc_id=$(az devcenter admin network-connection show --name DevboxDefaultNetworkConnection -g rg-network-devbox-demo -o tsv --query id)
+echo $nc_id
+```
+
+### Assign the Contributor role to devcenter network connection on appId
+```
+az role assignment create --assignee ${appId} --role "Contributor" --scope $nc_id
+```
+
+### Create the database as usual
+
+
+## Dev Center
+
+Using `subscription1`
+
+```
+subscription1="xxxxx"
+az login --subscription $subscription1
+```
+
+### Create the devcenter 
+
+```
+az group create  --location centralindia --resource-group rg-devbox-demo
+az devcenter admin devcenter create --location "centralindia" --tags CostCode="12345" --name "ContosoDevCenter" --resource-group "rg-devbox-demo"
+```
+
+### Assign the Contributor role to devcenter network connection on appId
+
+```
+appId=$(az ad sp list --display-name myServicePrincipalForDevBox --query "[].appId" -o tsv)
+az role assignment create --assignee ${appId} --role "Contributor" --scope /subscriptions/${subscription1}/resourceGroups/rg-devbox-demo/providers/Microsoft.DevCenter/devcenters/ContosoDevCenter
+```
+
+### Attach the Network Connection to DevCenter
+
+```
+appId=$(az ad sp list --display-name myServicePrincipalForDevBox --query "[].appId" -o tsv)
+tenantId=$(az account  show -o tsv --query "{tenantId:tenantId}")
+
+az login --service-principal -u ${appID} -p ${appPassword} -t ${tenantId}
+
+nc_id="/subscriptions/${subscription2}/resourceGroups/rg-network-devbox-demo/providers/Microsoft.DevCenter/networkConnections/DevboxDefaultNetworkConnection"
+az devcenter admin attached-network create --attached-network-connection-name AttachedDevboxDefaultNetworkConnection -g rg-devbox-demo --dev-center ContosoDevCenter --network-connection-id ${nc_id}
+
+az logout
+```
+
+The other commands remain the same.

@@ -22,6 +22,27 @@ The full bash script is available here [scripts/setup_devbox.sh](scripts/setup_d
 
 ![DevBox Image](devbox_1.png)
 
+# Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [DevCenter](#devcenter)
+  - [New DevCenter](#new-devcenter)
+  - [Add DevBox Definition](#add-devbox-definition)
+  - [Add Environment Types](#add-environment-types)
+  - [Add Network Connection](#add-network-connection)
+- [Databases](#databases)
+  - [Azure Database for PostgreSQL](#azure-database-for-postgresql)
+- [Project](#project)
+  - [Define a Project](#define-a-project)
+  - [Assign Environment Type to the Project](#assign-environment-type-to-the-project)
+  - [Manage Devbox Pools](#manage-devbox-pools)
+  - [Manage Users](#manage-users)
+- [The Dev Box](#the-dev-box)
+- [Multiple Subscriptions](#multiple-subscriptions)
+  - [Introduction](#introduction)
+  - [New Application](#new-application)
+  - [Network & Database](#network--database)
+  - [Dev Center](#dev-center)
 
 # Prerequisites
 
@@ -116,7 +137,7 @@ az devcenter admin project create --location "centralindia" --description "This 
 az devcenter admin project list -o table --query "[].{resource:resourceGroup, name:name, location:location}" 
 ```
 
-## Assign Environment Type to the Projet
+## Assign Environment Type to the Project
 
 ```
 az devcenter admin project-environment-type list --project-name "Project1" --resource-group "rg-devbox-demo"

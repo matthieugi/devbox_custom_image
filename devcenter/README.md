@@ -171,7 +171,7 @@ user_id=$(az ad user show --id "bob@LEBO.onmicrosoft.com" --query "id" --output 
 az role assignment create --assignee ${user_id} --role "DevCenter Dev Box User" --scope ${project_id}
 ```
 
-# The Dev Box
+## The Dev Box
 
 * Open the devportal and create a devbox : https://devportal.microsoft.com/
 * Connect on the devbox and run vscode
@@ -198,6 +198,20 @@ Ping statistics for 10.0.2.4:
     Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),
 Approximate round trip times in milli-seconds:
     Minimum = 0ms, Maximum = 1ms, Average = 0ms
+```
+
+## Clean up
+
+```sh
+#!/bin/bash
+# Login to Azure
+az login
+
+az group delete --name rg-devbox-demo --yes --no-wait
+az group delete --name rg-db-devbox-demo --yes --no-wait
+az group delete --name rg-network-devbox-demo --yes --no-wait
+
+echo "Resource groups deletion initiated."
 ```
 
 # Multiple subscriptions
